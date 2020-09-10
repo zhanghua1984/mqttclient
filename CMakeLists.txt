@@ -11,7 +11,8 @@ set(PROJECT_ROOT_PATH "${PROJECT_SOURCE_DIR}")
 set(LIBRARY_OUTPUT_PATH "${PROJECT_ROOT_PATH}/${OUTDIRS}/lib/")
 set(EXECUTABLE_OUTPUT_PATH "${PROJECT_ROOT_PATH}/${OUTDIRS}/bin/")
 
-set(CMAKE_BUILD_TYPE "Release")   # Debug Release
+#set(CMAKE_BUILD_TYPE "Release")   # Debug Release
+set(CMAKE_BUILD_TYPE "Debug")   # Debug Release
 set(CMAKE_LIB_TYPE "STATIC")   # SHARED STATIC
 
 # set(CMAKE_C_COMPILER "gcc")
