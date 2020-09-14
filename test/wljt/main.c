@@ -255,9 +255,89 @@ static void topic2_handler(void* client, message_data_t* msg)
 static void topic3_handler(void* client, message_data_t* msg)
 {
     (void) client;
+	/*
     MQTT_LOG_I("-----------------------------------------------------------------------------------");
     MQTT_LOG_I("%s:%d %s()...\ntopic: %s\nmessage:%s", __FILE__, __LINE__, __FUNCTION__, msg->topic_name, (char*)msg->message->payload);
     MQTT_LOG_I("-----------------------------------------------------------------------------------");
+	*/
+	(void) client;
+
+	printf("%s\r\n",(char*)msg->message->payload);
+	//解析json，比对项目名称、设备名称，解析子设备动作
+	m_ungControlFlag = 1;
+	cJSON *root=cJSON_Parse((char*)msg->message->payload);
+	
+	if (!root)
+	{
+		printf("Error before: [%s]\n",cJSON_GetErrorPtr());
+		goto DEAL_FINISH ;
+	}
+	else
+	{
+		cJSON *item=cJSON_GetObjectItem(root,"Project");
+		if(item!=NULL)
+		{
+			printf("cJSON_GetObjectItem: type=%d, key is %s, value is %s\n",item->type,item->string,item->valuestring);
+			if(strcmp(item->valuestring,config.project)!=0)
+			{
+				printf("project name mismatch\r\n");
+				goto DEAL_FINISH ; ;
+			}
+		}
+
+		item=cJSON_GetObjectItem(root,"DevId");
+		if(item!=NULL)
+		{
+			printf("cJSON_GetObjectItem: type=%d, key is %s, value is %s\n",item->type,item->string,item->valuestring);
+			if(strcmp(item->valuestring,config.devid)!=0)
+			{
+				printf("devid mismatch\r\n");
+				goto DEAL_FINISH ; ;
+			}
+		}
+
+		item=cJSON_GetObjectItem(root,"SubDevName");
+		if(item!=NULL)
+		{
+			printf("cJSON_GetObjectItem: type=%d, key is %s, value is %s\n",item->type,item->string,item->valuestring);
+
+			if(strcmp(item->valuestring,"Breaker")==0)	//断路器控制
+			{
+				printf("Breaker control start \r\n");
+				item=cJSON_GetObjectItem(root,"SubDevStatus");
+				if(item!=NULL)
+				{
+					printf("cJSON_GetObjectItem: type=%d, key is %s, value is %d\n",item->type,item->string,item->valueint);
+					//状态写入
+					printf("breaker status write in \r\n");
+					
+					unsigned char  m_u8breaker[16];
+					
+					m_u8breaker[0] = 0x68;
+					m_u8breaker[1] = 0xA0;
+					m_u8breaker[2] = 0x02;
+					m_u8breaker[3] = 0x03;
+					m_u8breaker[4] = 0x20;
+					m_u8breaker[5] = 0xA0;
+					m_u8breaker[6] = item->valueint;
+					m_u8breaker[7] = CheckSum(m_u8breaker, 7);
+
+					int m_nWriteRc=write(fd,m_u8breaker,8); 
+					if (m_nWriteRc<0) 
+					{
+						printf("RS485 ctrl write fail\r\n");
+					}
+				}
+			}
+		}
+
+		
+	}
+
+DEAL_FINISH:
+	cJSON_Delete(root);
+	m_ungControlFlag = 0;
+	
 }
 
 
@@ -817,9 +897,14 @@ int main(void)
     mqtt_set_clean_session(client, 1);
 
     mqtt_connect(client);
-    
+
+	snprintf(config.mqtt_subscribe_qos1, STRINGBUFSIZE, "%s%s\/ctrl",config.mqtt_subscribe_qos0,config.devid);
+	strcpy(config.mqtt_subscribe_qos0,config.mqtt_subscribe_qos1);
+	printf("**********************************************************\r\n");
+	printf("mqtt_subscribe_qos0 =%s \r\n",config.mqtt_subscribe_qos0);
+	printf("**********************************************************\r\n");
     mqtt_subscribe(client, config.mqtt_subscribe_qos0, QOS0, topic1_handler);
-    mqtt_subscribe(client, config.mqtt_subscribe_qos1, QOS1, topic2_handler);
+    //mqtt_subscribe(client, config.mqtt_subscribe_qos1, QOS1, topic2_handler);
     mqtt_subscribe(client, config.mqtt_subscribe_qos2, QOS2, topic3_handler);
     
     res = pthread_create(&thread1, NULL, mqtt_publish_thread, client);
